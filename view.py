@@ -1,4 +1,3 @@
-# view.py
 
 from datetime import datetime
 
@@ -43,7 +42,7 @@ class ConsoleView:
         phone = input("Телефон (рядковий): ")
         
         if not all([firstname, lastname, email, phone]):
-            self.show_message("❌ Усі поля є обов'язковими (NOT NULL).")
+            self.show_message(" Усі поля є обов'язковими (NOT NULL).")
             return None
 
         return firstname, lastname, email, phone
@@ -55,11 +54,11 @@ class ConsoleView:
             try:
                 count = int(count_str)
                 if count <= 0:
-                     self.show_message("❌ Кількість має бути більше 0.")
+                     self.show_message(" Кількість має бути більше 0.")
                      continue
                 return count
             except ValueError:
-                self.show_message("❌ Невірний формат. Введіть ціле число.")
+                self.show_message(" Невірний формат. Введіть ціле число.")
                 return None
                 
     def get_id_for_action(self, action="редагування"):
@@ -69,7 +68,7 @@ class ConsoleView:
             try:
                 return int(id_str)
             except ValueError:
-                self.show_message("❌ ID має бути числом.")
+                self.show_message(" ID має бути числом.")
                 # Додамо повернення None, якщо користувач введе не-число
                 return None
 
@@ -114,7 +113,7 @@ class ConsoleView:
             if date_to_str:
                 date_to = datetime.strptime(date_to_str, '%Y-%m-%d').date()
         except ValueError:
-            self.show_message("❌ Невірний формат дати. Використовуйте YYYY-MM-DD.")
+            self.show_message(" Невірний формат дати. Використовуйте YYYY-MM-DD.")
             ### ВИПРАВЛЕНО: Повертаємо None, щоб зупинити controller ###
             return None 
             
@@ -125,7 +124,7 @@ class ConsoleView:
             facility_id = int(facility_id_str) if facility_id_str.isdigit() else None
             min_price = int(min_price_str) if min_price_str.isdigit() else None
         except ValueError:
-            self.show_message("❌ Невірний формат ID або ціни.")
+            self.show_message(" Невірний формат ID або ціни.")
             return None
             
         return (

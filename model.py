@@ -1,5 +1,3 @@
-# model.py
-
 import psycopg2
 import psycopg2.errors 
 import time
@@ -28,13 +26,13 @@ class DatabaseModel:
             # ПОТРЕБУВАТИМЕ .commit()
             self.conn.autocommit = False 
             
-            print("✅ Підключення до БД (схема 'lab1') успішне.")
+            print(" Підключення до БД (схема 'lab1') успішне.")
         
         except psycopg2.OperationalError as e:
-            print(f"❌ Помилка підключення до БД: {e}")
+            print(f" Помилка підключення до БД: {e}")
             self.conn = None
         except psycopg2.Error as e:
-            print(f"❌ Помилка налаштування (переконайтесь, що схема 'lab1' існує): {e}")
+            print(f" Помилка налаштування (переконайтесь, що схема 'lab1' існує): {e}")
             self.conn = None
 
     def close(self):
@@ -88,7 +86,7 @@ class DatabaseModel:
                     self.conn.rollback() # Нічого не оновлено, відкат
                     return f"Клієнт з ID {client_id} не знайдений."
                 self.conn.commit() # Зберігаємо
-                return f"✅ Клієнт з ID {client_id} успішно оновлений."
+                return f" Клієнт з ID {client_id} успішно оновлений."
         except psycopg2.Error as e:
             self.conn.rollback()
             return f"Помилка БД: {e.diag.message_primary}"
@@ -103,12 +101,12 @@ class DatabaseModel:
                     self.conn.rollback() # Нічого не видалено
                     return f"Клієнт з ID {client_id} не знайдений."
                 self.conn.commit() # Зберігаємо
-                return f"✅ Клієнт з ID {client_id} успішно видалений."
+                return f" Клієнт з ID {client_id} успішно видалений."
         
         # Це виконання Пункту 1 РГР
         except psycopg2.errors.ForeignKeyViolation as e:
             self.conn.rollback() # КРИТИЧНО: відкат, якщо не можна видалити
-            return f"❌ Помилка БД: Неможливо видалити клієнта {client_id}, оскільки він має активні бронювання (FK Violation)!"
+            return f" Помилка БД: Неможливо видалити клієнта {client_id}, оскільки він має активні бронювання (FK Violation)!"
         except psycopg2.Error as e:
             self.conn.rollback()
             return f"Помилка БД: {e.diag.message_primary}"
@@ -125,10 +123,10 @@ class DatabaseModel:
                 cur.execute(building_sql)
                 cur.execute(facility_sql)
             self.conn.commit() # Зберігаємо
-            return f"✅ Додано {count} будівель та 100 приміщень для цілісності."
+            return f" Додано {count} будівель та 100 приміщень для цілісності."
         except psycopg2.Error as e:
             self.conn.rollback()
-            return f"❌ Помилка БД під час генерації FK-таблиць: {e.diag.message_primary}"
+            return f" Помилка БД під час генерації FK-таблиць: {e.diag.message_primary}"
 
     def generate_clients(self, count):
         """Генерує count псевдовипадкових записів у таблицю Client."""
@@ -151,11 +149,11 @@ class DatabaseModel:
             end_time = time.time()
             
             time_ms = round((end_time - start_time) * 1000, 2)
-            return f"✅ {count} записів додано до Client. Час виконання: {time_ms} мс."
+            return f" {count} записів додано до Client. Час виконання: {time_ms} мс."
 
         except psycopg2.Error as e:
             self.conn.rollback()
-            return f"❌ Помилка БД під час генерації: {e.diag.message_primary}"
+            return f" Помилка БД під час генерації: {e.diag.message_primary}"
 
     def _get_max_ids(self):
         """Отримує реальні максимальні ID для коректної генерації FK."""
@@ -180,7 +178,7 @@ class DatabaseModel:
         
         max_client, max_facility = self._get_max_ids()
         if not max_client or not max_facility:
-            return "❌ Помилка: Необхідно спочатку згенерувати Клієнтів та Приміщення (FK порушення)!"
+            return " Помилка: Необхідно спочатку згенерувати Клієнтів та Приміщення (FK порушення)!"
 
         sql = f"""
             INSERT INTO booking (client_id, facility_id, start_time, end_time, status)
@@ -205,14 +203,14 @@ class DatabaseModel:
             end_time = time.time()
             
             time_ms = round((end_time - start_time) * 1000, 2)
-            return f"✅ {count} записів додано до Booking. Час виконання: {time_ms} мс."
+            return f" {count} записів додано до Booking. Час виконання: {time_ms} мс."
 
         except psycopg2.errors.ForeignKeyViolation as e:
             self.conn.rollback()
-            return f"❌ Помилка FK (це дивно, перевірте _get_max_ids): {e.diag.message_primary}"
+            return f" Помилка FK (це дивно, перевірте _get_max_ids): {e.diag.message_primary}"
         except psycopg2.Error as e:
             self.conn.rollback()
-            return f"❌ Помилка БД під час генерації Booking: {e.diag.message_primary}"
+            return f" Помилка БД під час генерації Booking: {e.diag.message_primary}"
 
 
     # --- ПОШУК (Пункт 3) ---
@@ -276,8 +274,8 @@ class DatabaseModel:
             
             time_ms = round((end_time - start_time) * 1000, 2)
             
-            return f"✅ Пошук завершено. Знайдено {len(data)} записів. Час виконання: {time_ms} мс.", (headers, data)
+            return f" Пошук завершено. Знайдено {len(data)} записів. Час виконання: {time_ms} мс.", (headers, data)
 
         except psycopg2.Error as e:
             self.conn.rollback() # На випадок помилки SELECT
-            return f"❌ Помилка БД під час пошуку: {e.diag.message_primary}", (None, None)
+            return f" Помилка БД під час пошуку: {e.diag.message_primary}", (None, None)

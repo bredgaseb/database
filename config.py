@@ -1,4 +1,3 @@
-# config.py
 
 # Параметри для підключення до вашої бази даних PostgreSQL
 DB_CONFIG = {

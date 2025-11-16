@@ -1,4 +1,3 @@
-# controller.py
 
 from model import DatabaseModel
 from view import ConsoleView
