@@ -1,0 +1,88 @@
+-- Рекомендовано виконати цей скрипт повністю у Query Tool pgAdmin 4.
+
+BEGIN;
+
+DROP TABLE IF EXISTS lab1.booking CASCADE;
+DROP TABLE IF EXISTS lab1.administrator CASCADE;
+DROP TABLE IF EXISTS lab1.facility CASCADE;
+DROP TABLE IF EXISTS lab1.client CASCADE;
+DROP TABLE IF EXISTS lab1.building CASCADE;
+
+
+
+CREATE TABLE IF NOT EXISTS lab1.client
+(
+    client_id integer NOT NULL GENERATED ALWAYS AS IDENTITY (START WITH 1),
+    client_first_name character varying(50) NOT NULL,
+    client_last_name character varying(50) NOT NULL,
+    client_email character varying(50) NOT NULL,
+    client_phone character varying(50) NOT NULL,
+    PRIMARY KEY (client_id)
+);
+
+CREATE TABLE IF NOT EXISTS lab1.building
+(
+    building_id integer NOT NULL GENERATED ALWAYS AS IDENTITY (START WITH 1),
+    building_name character varying(50) NOT NULL,
+    building_address character varying(50) NOT NULL,
+    CONSTRAINT building_pkey PRIMARY KEY (building_id) 
+);
+
+CREATE TABLE IF NOT EXISTS lab1.facility
+(
+    building_id integer NOT NULL,
+    facility_id integer NOT NULL GENERATED ALWAYS AS IDENTITY (START WITH 1),
+    facility_number integer NOT NULL,
+    max_capacity integer NOT NULL,
+    price_per_hour integer NOT NULL,
+    PRIMARY KEY (facility_id)
+);
+
+CREATE TABLE IF NOT EXISTS lab1.booking
+(
+    booking_id integer NOT NULL GENERATED ALWAYS AS IDENTITY (START WITH 1),
+    client_id integer NOT NULL,
+    facility_id integer NOT NULL,
+    start_time timestamp with time zone NOT NULL,
+    end_time timestamp with time zone NOT NULL,
+    status character varying(50) NOT NULL,
+    CONSTRAINT bookingp_key PRIMARY KEY (booking_id)
+);
+
+CREATE TABLE IF NOT EXISTS lab1.administrator
+(
+    adm_id integer NOT NULL GENERATED ALWAYS AS IDENTITY (START WITH 1),
+    adm_email character varying(50) NOT NULL,
+    first_name character varying NOT NULL, 
+    last_name character varying NOT NULL,  
+    building_id integer NOT NULL,
+    PRIMARY KEY (adm_id)
+);
+
+-- 3. ЗОВНІШНІ КЛЮЧІ
+
+ALTER TABLE IF EXISTS lab1.booking
+    ADD FOREIGN KEY (client_id)
+    REFERENCES lab1.client (client_id) MATCH SIMPLE
+    ON UPDATE NO ACTION
+    ON DELETE NO ACTION;
+
+ALTER TABLE IF EXISTS lab1.booking
+    ADD FOREIGN KEY (facility_id)
+    REFERENCES lab1.facility (facility_id) MATCH SIMPLE
+    ON UPDATE NO ACTION
+    ON DELETE NO ACTION;
+
+ALTER TABLE IF EXISTS lab1.facility
+    ADD FOREIGN KEY (building_id)
+    REFERENCES lab1.building (building_id) MATCH SIMPLE
+    ON UPDATE NO ACTION
+    ON DELETE NO ACTION;
+
+ALTER TABLE IF EXISTS lab1.administrator
+    ADD FOREIGN KEY (building_id)
+    REFERENCES lab1.building (building_id) MATCH SIMPLE
+    ON UPDATE NO ACTION
+    ON DELETE NO ACTION;
+
+END;
