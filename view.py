@@ -70,6 +70,8 @@ class ConsoleView:
                 return int(id_str)
             except ValueError:
                 self.show_message("❌ ID має бути числом.")
+                # Додамо повернення None, якщо користувач введе не-число
+                return None
 
     def show_data(self, headers, data):
         """Форматує та виводить дані у вигляді простої таблиці."""
@@ -89,35 +91,47 @@ class ConsoleView:
         print("—" * (sum(col_widths) + len(col_widths) * 3))
         
         for row in data:
-            print(row_format.format(*[str(item) for item in row]))
+            # Конвертуємо всі елементи в рядок для форматування
+            formatted_row = [str(item) if item is not None else "NULL" for item in row]
+            print(row_format.format(*formatted_row))
         print("=" * (sum(col_widths) + len(col_widths) * 3))
         
     def get_search_params(self):
         """Отримує параметри для складного пошуку."""
         print("\n--- Введення параметрів Пошуку (Пункт 3) ---")
         
-        # Приклад збору даних (можна розширити)
         status = input("Введіть статус бронювання (або частину, наприклад 'conf'): ")
         
-        # Дати (складна валідація опускається для стислості)
         date_from_str = input("Дата початку бронювання (YYYY-MM-DD) (залиште пустим, якщо не потрібно): ")
         date_to_str = input("Дата кінця бронювання (YYYY-MM-DD) (залиште пустим, якщо не потрібно): ")
         
+        date_from = None
+        date_to = None
+        
         try:
-            date_from = datetime.strptime(date_from_str, '%Y-%m-%d') if date_from_str else None
-            date_to = datetime.strptime(date_to_str, '%Y-%m-%d') if date_to_str else None
+            if date_from_str:
+                date_from = datetime.strptime(date_from_str, '%Y-%m-%d').date()
+            if date_to_str:
+                date_to = datetime.strptime(date_to_str, '%Y-%m-%d').date()
         except ValueError:
             self.show_message("❌ Невірний формат дати. Використовуйте YYYY-MM-DD.")
-            return None, None, None, None, None
+            ### ВИПРАВЛЕНО: Повертаємо None, щоб зупинити controller ###
+            return None 
             
-        # Заглушки для інших параметрів, які потрібно збирати:
-        facility_id = input("ID Приміщення (число, залиште пустим): ")
-        min_price = input("Мінімальна ціна за годину (число, залиште пустим): ")
+        facility_id_str = input("ID Приміщення (число, залиште пустим): ")
+        min_price_str = input("Мінімальна ціна за годину (число, залиште пустим): ")
 
+        try:
+            facility_id = int(facility_id_str) if facility_id_str.isdigit() else None
+            min_price = int(min_price_str) if min_price_str.isdigit() else None
+        except ValueError:
+            self.show_message("❌ Невірний формат ID або ціни.")
+            return None
+            
         return (
-            int(facility_id) if facility_id.isdigit() else None, 
+            facility_id, 
             date_from, 
             date_to, 
             status if status else None, 
-            int(min_price) if min_price.isdigit() else None
+            min_price
         )

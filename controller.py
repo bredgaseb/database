@@ -25,7 +25,7 @@ class MainController:
             elif choice == '2':
                 self._handle_generation_menu()
             elif choice == '3':
-                self._handle_search() # Викликаємо обробник пошуку
+                self._handle_search()
             elif choice == '0':
                 self.model.close()
                 self.view.show_message("Додаток закрито. До побачення!")
@@ -57,18 +57,22 @@ class MainController:
                         
             elif crud_choice == '3': # UPDATE
                 client_id = self.view.get_id_for_action("редагування")
-                if client_id is not None:
-                    data = self.view.get_new_client_data(client_id)
-                    if data:
-                        firstname, lastname, email, phone = data
-                        result = self.model.update_client(client_id, firstname, lastname, email, phone)
-                        self.view.show_message(result)
+                if client_id is None: # Користувач ввів не-число
+                    continue 
+                    
+                data = self.view.get_new_client_data(client_id)
+                if data:
+                    firstname, lastname, email, phone = data
+                    result = self.model.update_client(client_id, firstname, lastname, email, phone)
+                    self.view.show_message(result)
 
             elif crud_choice == '4': # DELETE
                 client_id = self.view.get_id_for_action("видалення")
-                if client_id is not None:
-                    result = self.model.delete_client(client_id)
-                    self.view.show_message(result)
+                if client_id is None: # Користувач ввів не-число
+                    continue
+                
+                result = self.model.delete_client(client_id)
+                self.view.show_message(result)
                     
             elif crud_choice == '9':
                 break
@@ -79,8 +83,8 @@ class MainController:
         """Обробка генерації даних."""
         self.view.show_message("\n--- Генерація Даних (Пункт 2) ---")
         self.view.show_message("1. Створити Будівлі та Приміщення (FK-таблиці) [10 / 100]")
-        self.view.show_message("2. Згенерувати 100 000 Клієнтів")
-        self.view.show_message("3. Згенерувати 100 000 Бронювань")
+        self.view.show_message("2. Згенерувати Клієнтів")
+        self.view.show_message("3. Згенерувати Бронювання")
         
         gen_choice = input(">>> Оберіть дію: ")
         
@@ -105,7 +109,10 @@ class MainController:
         
         # 1. Отримати параметри пошуку від View
         params = self.view.get_search_params()
+        
+        ### ВИПРАВЛЕНО: Якщо params це None (через помилку дати), виходимо ###
         if params is None:
+            self.view.show_message("Пошук скасовано через помилку введення.")
             return
 
         facility_id, date_from, date_to, status, min_price = params
