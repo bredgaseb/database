@@ -1,5 +1,3 @@
-# model.py
-
 import psycopg2
 import psycopg2.errors 
 import time

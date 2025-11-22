@@ -1,5 +1,3 @@
-# controller.py
-
 from model import DatabaseModel
 from view import ConsoleView
 
@@ -82,7 +80,7 @@ class MainController:
                     if data:
                         self.view.show_message(self.model.insert_booking(data))
                 else:
-                    self.view.show_message("⚠️ Додавання для цієї таблиці реалізується аналогічно (див. код).")
+                    self.view.show_message("Додавання для цієї таблиці реалізується аналогічно (див. код).")
 
             # 3. UPDATE (Специфічно для кожної таблиці)
             elif action == '3':
@@ -97,7 +95,7 @@ class MainController:
                         if data:
                             self.view.show_message(self.model.update_booking(rec_id, data))
                     else:
-                        self.view.show_message("⚠️ Редагування для цієї таблиці реалізується аналогічно.")
+                        self.view.show_message("Редагування для цієї таблиці реалізується аналогічно.")
 
             # 4. DELETE (Універсально для всіх таблиць)
             elif action == '4':

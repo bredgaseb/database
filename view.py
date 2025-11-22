@@ -1,5 +1,3 @@
-# view.py
-
 from datetime import datetime
 
 class ConsoleView:
@@ -53,7 +51,7 @@ class ConsoleView:
         phone = input("Телефон: ")
         
         if not all([firstname, lastname, email, phone]):
-            self.show_message("❌ Помилка: Усі поля обов'язкові.")
+            self.show_message("Помилка: Усі поля обов'язкові.")
             return None
         return firstname, lastname, email, phone
 
@@ -72,7 +70,7 @@ class ConsoleView:
             
             return client_id, facility_id, start_str, end_str, status
         except ValueError:
-            self.show_message("❌ Помилка: ID мають бути числами, дати у коректному форматі.")
+            self.show_message("Помилка: ID мають бути числами, дати у коректному форматі.")
             return None
 
     def get_id(self, action="дії"):
@@ -81,7 +79,7 @@ class ConsoleView:
             val = input(f">>> Введіть ID запису для {action}: ")
             return int(val)
         except ValueError:
-            self.show_message("❌ Помилка: ID має бути числом.")
+            self.show_message("Помилка: ID має бути числом.")
             return None
 
     def get_generation_count(self):
@@ -92,7 +90,7 @@ class ConsoleView:
             if count <= 0: raise ValueError
             return count
         except ValueError:
-            self.show_message("❌ Помилка: введіть ціле число > 0.")
+            self.show_message("Помилка: введіть ціле число > 0.")
             return None
 
     def show_data(self, headers, data):
@@ -140,5 +138,5 @@ class ConsoleView:
             
             return facility_id, date_from, date_to, status, min_price
         except ValueError:
-            self.show_message("❌ Помилка вводу: Перевірте формат дати або чисел.")
+            self.show_message("Помилка вводу: Перевірте формат дати або чисел.")
             return None
