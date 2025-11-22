@@ -1,3 +1,5 @@
+# model.py
+
 import psycopg2
 import psycopg2.errors 
 import time
@@ -13,211 +15,234 @@ class DatabaseModel:
     def connect(self):
         """Встановлює підключення до бази даних."""
         try:
-            db_config_lab1 = DB_CONFIG.copy()
+            # Копіюємо конфігурацію, щоб не змінювати оригінал
+            cfg = DB_CONFIG.copy()
+            # Встановлюємо search_path, щоб не писати 'lab1.' перед кожною таблицею
+            cfg['options'] = '-c search_path=lab1,public'
             
-            # Встановлюємо search_path через options, 
-            # щоб уникнути помилок з транзакціями
-            db_config_lab1['options'] = '-c search_path=lab1,public'
-            
-            self.conn = psycopg2.connect(**db_config_lab1)
-            
-            # ЯВНО вказуємо, що автокоміт вимкнено.
-            # Кожна операція, що змінює дані, 
-            # ПОТРЕБУВАТИМЕ .commit()
-            self.conn.autocommit = False 
-            
-            print(" Підключення до БД (схема 'lab1') успішне.")
-        
-        except psycopg2.OperationalError as e:
-            print(f" Помилка підключення до БД: {e}")
-            self.conn = None
-        except psycopg2.Error as e:
-            print(f" Помилка налаштування (переконайтесь, що схема 'lab1' існує): {e}")
+            self.conn = psycopg2.connect(**cfg)
+            self.conn.autocommit = False # Вимикаємо автокоміт для контролю транзакцій
+            print("Підключення до БД успішне.")
+        except Exception as e:
+            print(f"Помилка підключення: {e}")
             self.conn = None
 
     def close(self):
         """Закриває підключення."""
         if self.conn:
             self.conn.close()
-            
-    # --- CRUD ДЛЯ CLIENT ---
-    
-    def insert_client(self, firstname, lastname, email, phone):
-        """[CREATE] Вставляє новий запис Client."""
+
+    # =========================================================================
+    # УНІВЕРСАЛЬНІ МЕТОДИ (READ, DELETE)
+    # =========================================================================
+
+    def get_all(self, table_name, limit=100):
+        """
+        Універсальний метод для отримання всіх записів з будь-якої таблиці.
+        """
+        # Увага: table_name тут підставляється через f-string. 
+        # У реальному продакшені це небезпечно (SQL Injection), 
+        # але для навчальної роботи та внутрішнього використання - допустимо, 
+        # оскільки назва таблиці береться з hardcoded словника в контролері.
+        sql = f"SELECT * FROM {table_name} LIMIT %s"
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute(sql, (limit,))
+                # Отримуємо назви колонок
+                headers = [desc.name for desc in cur.description]
+                data = cur.fetchall()
+                return headers, data
+        except psycopg2.Error as e:
+            return None, f"Помилка БД: {e.diag.message_primary}"
+
+    def delete_record(self, table_name, pk_column, pk_value):
+        """
+        Універсальний метод для видалення запису за ID.
+        """
+        sql = f"DELETE FROM {table_name} WHERE {pk_column} = %s"
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute(sql, (pk_value,))
+                if cur.rowcount == 0:
+                    self.conn.rollback()
+                    return f"Запис з ID {pk_value} не знайдено в таблиці {table_name}."
+                self.conn.commit()
+                return f"Запис ID {pk_value} успішно видалено з {table_name}."
+        
+        # Обробка помилки Foreign Key (Пункт 1 РГР)
+        except psycopg2.errors.ForeignKeyViolation:
+            self.conn.rollback()
+            return f"Неможливо видалити запис {pk_value}: на нього посилаються інші дані (обмеження Foreign Key)!"
+        except psycopg2.Error as e:
+            self.conn.rollback()
+            return f"Помилка БД: {e.diag.message_primary}"
+
+    # =========================================================================
+    # СПЕЦИФІЧНІ МЕТОДИ (CREATE, UPDATE)
+    # =========================================================================
+
+    # --- CLIENT ---
+    def insert_client(self, data):
+        """Вставка клієнта: (firstname, lastname, email, phone)"""
         sql = """
-            INSERT INTO client (client_first_name, client_last_name, client_email, client_phone)
+            INSERT INTO client (client_first_name, client_last_name, client_email, client_phone) 
             VALUES (%s, %s, %s, %s) 
             RETURNING client_id;
         """
         try:
             with self.conn.cursor() as cur:
-                cur.execute(sql, (firstname, lastname, email, phone))
-                client_id = cur.fetchone()[0] 
-                self.conn.commit() # Зберігаємо зміни
-                return client_id
+                cur.execute(sql, data)
+                new_id = cur.fetchone()[0]
+                self.conn.commit()
+                return f"Клієнт успішно доданий (ID: {new_id})."
         except psycopg2.Error as e:
-            self.conn.rollback() # Відкочуємо у разі помилки
-            return f"Помилка БД: {e.diag.message_primary}"
-            
-    def select_all_clients(self):
-        """[READ] Вибирає всі записи (обмежено 100)."""
-        sql = "SELECT client_id, client_first_name, client_last_name, client_email, client_phone FROM client LIMIT 100;"
-        try:
-            with self.conn.cursor() as cur:
-                cur.execute(sql)
-                headers = [desc.name for desc in cur.description] 
-                data = cur.fetchall()
-                # SELECT не потребує commit
-                return headers, data
-        except psycopg2.Error as e:
-            return None, f"Помилка БД: {e.diag.message_primary}"
-            
-    def update_client(self, client_id, firstname, lastname, email, phone):
-        """[UPDATE] Оновлює запис Client."""
+            self.conn.rollback()
+            return f"Помилка додавання: {e.diag.message_primary}"
+
+    def update_client(self, client_id, data):
+        """Оновлення клієнта."""
         sql = """
             UPDATE client SET 
-                client_first_name = %s, client_last_name = %s, client_email = %s, client_phone = %s
-            WHERE client_id = %s;
+                client_first_name=%s, client_last_name=%s, client_email=%s, client_phone=%s 
+            WHERE client_id=%s;
         """
         try:
             with self.conn.cursor() as cur:
-                cur.execute(sql, (firstname, lastname, email, phone, client_id))
+                # Додаємо ID в кінець кортежу параметрів
+                cur.execute(sql, data + (client_id,))
                 if cur.rowcount == 0:
-                    self.conn.rollback() # Нічого не оновлено, відкат
-                    return f"Клієнт з ID {client_id} не знайдений."
-                self.conn.commit() # Зберігаємо
-                return f" Клієнт з ID {client_id} успішно оновлений."
+                    self.conn.rollback()
+                    return "Клієнт не знайдений."
+                self.conn.commit()
+                return "Дані клієнта оновлено."
+        except psycopg2.Error as e:
+            self.conn.rollback()
+            return f"Помилка оновлення: {e.diag.message_primary}"
+
+    # --- BOOKING ---
+    def insert_booking(self, data):
+        """Вставка бронювання: (client_id, facility_id, start, end, status)"""
+        sql = """
+            INSERT INTO booking (client_id, facility_id, start_time, end_time, status) 
+            VALUES (%s, %s, %s, %s, %s) 
+            RETURNING booking_id;
+        """
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute(sql, data)
+                new_id = cur.fetchone()[0]
+                self.conn.commit()
+                return f"Бронювання створено (ID: {new_id})."
+        except psycopg2.errors.ForeignKeyViolation:
+            self.conn.rollback()
+            return "Помилка: Клієнта або Приміщення з таким ID не існує."
         except psycopg2.Error as e:
             self.conn.rollback()
             return f"Помилка БД: {e.diag.message_primary}"
 
-    def delete_client(self, client_id):
-        """[DELETE] Видаляє запис Client з контролем цілісності."""
-        sql = "DELETE FROM client WHERE client_id = %s;"
+    def update_booking(self, booking_id, data):
+        """Оновлення бронювання."""
+        sql = """
+            UPDATE booking SET 
+                client_id=%s, facility_id=%s, start_time=%s, end_time=%s, status=%s 
+            WHERE booking_id=%s;
+        """
         try:
             with self.conn.cursor() as cur:
-                cur.execute(sql, (client_id,))
-                if cur.rowcount == 0:
-                    self.conn.rollback() # Нічого не видалено
-                    return f"Клієнт з ID {client_id} не знайдений."
-                self.conn.commit() # Зберігаємо
-                return f" Клієнт з ID {client_id} успішно видалений."
-        
-        # Це виконання Пункту 1 РГР
-        except psycopg2.errors.ForeignKeyViolation as e:
-            self.conn.rollback() # КРИТИЧНО: відкат, якщо не можна видалити
-            return f" Помилка БД: Неможливо видалити клієнта {client_id}, оскільки він має активні бронювання (FK Violation)!"
+                cur.execute(sql, data + (booking_id,))
+                self.conn.commit()
+                return "Бронювання оновлено."
         except psycopg2.Error as e:
             self.conn.rollback()
-            return f"Помилка БД: {e.diag.message_primary}"
+            return f"Помилка: {e.diag.message_primary}"
 
-    # --- ГЕНЕРАЦІЯ ДАНИХ (Пункт 2) ---
-    
-    def generate_buildings_and_facilities(self, count=10):
-        """Генерує FK-таблиці для цілісності Booking."""
-        building_sql = f"INSERT INTO building (building_name, building_address) SELECT 'Gym ' || t.i, 'Street ' || t.i FROM generate_series(1, {count}) AS t(i);"
-        facility_sql = f"INSERT INTO facility (building_id, facility_number, max_capacity, price_per_hour) SELECT (random() * ({count}-1) + 1)::int, t.i, (random() * 50 + 10)::int, (random() * 200 + 100)::int FROM generate_series(1, 100) AS t(i);"
-        
+    # =========================================================================
+    # ГЕНЕРАЦІЯ ДАНИХ (Пункт 2)
+    # =========================================================================
+
+    def generate_buildings_and_facilities(self):
+        """Створює базові будівлі та приміщення (якщо їх немає або мало)."""
         try:
             with self.conn.cursor() as cur:
-                cur.execute(building_sql)
-                cur.execute(facility_sql)
-            self.conn.commit() # Зберігаємо
-            return f" Додано {count} будівель та 100 приміщень для цілісності."
+                # Генеруємо 10 будівель
+                cur.execute("""
+                    INSERT INTO building (building_name, building_address) 
+                    SELECT 'Gym ' || i, 'Street ' || i 
+                    FROM generate_series(1, 10) AS t(i);
+                """)
+                # Генеруємо 100 приміщень, прив'язаних до цих будівель випадково
+                # (random() * 9 + 1)::int генерує ID будівлі від 1 до 10 (якщо вони йдуть підряд)
+                # Краще прив'язуватися до реальних ID, але для спрощення генерації припустимо, що Building ID є.
+                cur.execute("""
+                    INSERT INTO facility (building_id, facility_number, max_capacity, price_per_hour) 
+                    SELECT 
+                        (random() * 9 + 1)::int, 
+                        i, 
+                        (random() * 50 + 10)::int, 
+                        (random() * 200 + 100)::int 
+                    FROM generate_series(1, 100) AS t(i);
+                """)
+            self.conn.commit()
+            return "Згенеровано 10 будівель та 100 приміщень."
+        except psycopg2.errors.ForeignKeyViolation:
+            self.conn.rollback()
+            return "Помилка FK: Схоже, немає відповідних Building ID."
         except psycopg2.Error as e:
             self.conn.rollback()
-            return f" Помилка БД під час генерації FK-таблиць: {e.diag.message_primary}"
+            return f"Помилка генерації: {e.diag.message_primary}"
 
     def generate_clients(self, count):
-        """Генерує count псевдовипадкових записів у таблицю Client."""
+        """Генерує клієнтів."""
         sql = f"""
             INSERT INTO client (client_first_name, client_last_name, client_email, client_phone)
             SELECT 
-                first_name.name, last_name.name,
-                LOWER(first_name.name) || '.' || LOWER(last_name.name) || floor(random() * 1000) :: int || '@sportbook.com',
-                '380' || (100000000 + floor(random() * 899999999)) :: bigint
-            FROM 
-                generate_series(1, {count}) AS t(i) 
-                CROSS JOIN LATERAL (SELECT name FROM (VALUES ('Oleksandr'), ('Dmytro'), ('Yana')) AS names(name) ORDER BY random() LIMIT 1) AS first_name
-                CROSS JOIN LATERAL (SELECT name FROM (VALUES ('Shevchenko'), ('Kovalenko'), ('Melnyk')) AS names(name) ORDER BY random() LIMIT 1) AS last_name;
+                'Name' || i, 
+                'Surname' || i,
+                'user' || i || '@example.com',
+                '050' || floor(random() * 8999999 + 1000000)::int
+            FROM generate_series(1, {count}) AS t(i);
         """
         try:
-            start_time = time.time() 
+            t_start = time.time()
             with self.conn.cursor() as cur:
                 cur.execute(sql)
-            self.conn.commit() # Зберігаємо
-            end_time = time.time()
-            
-            time_ms = round((end_time - start_time) * 1000, 2)
-            return f" {count} записів додано до Client. Час виконання: {time_ms} мс."
-
+            self.conn.commit()
+            t_end = time.time()
+            return f"{count} клієнтів згенеровано за {round((t_end-t_start)*1000, 2)} мс."
         except psycopg2.Error as e:
             self.conn.rollback()
-            return f" Помилка БД під час генерації: {e.diag.message_primary}"
-
-    def _get_max_ids(self):
-        """Отримує реальні максимальні ID для коректної генерації FK."""
-        try:
-            with self.conn.cursor() as cur:
-                cur.execute("SELECT MAX(client_id) FROM client;")
-                max_client_id = cur.fetchone()[0]
-                
-                cur.execute("SELECT MAX(facility_id) FROM facility;")
-                max_facility_id = cur.fetchone()[0]
-                
-                if not max_client_id or not max_facility_id:
-                    self.conn.rollback() # Не знайшли ID, відкат
-                    return None, None
-                return max_client_id, max_facility_id
-        except psycopg2.Error:
-            self.conn.rollback() 
-            return None, None
+            return f"Помилка генерації клієнтів: {e.diag.message_primary}"
 
     def generate_bookings(self, count):
-        """Генерує count псевдовипадкових бронювань (Booking)."""
-        
-        max_client, max_facility = self._get_max_ids()
-        if not max_client or not max_facility:
-            return " Помилка: Необхідно спочатку згенерувати Клієнтів та Приміщення (FK порушення)!"
-
+        """Генерує бронювання, використовуючи існуючі ID клієнтів та приміщень."""
+        # Цей запит обирає випадковий ID з таблиці client та facility для кожного нового рядка
         sql = f"""
             INSERT INTO booking (client_id, facility_id, start_time, end_time, status)
             SELECT
-                (random() * ({max_client} - 1) + 1)::int AS client_id, 
-                (random() * ({max_facility} - 1) + 1)::int AS facility_id, 
-                TIMESTAMP '2025-01-01 08:00:00' + (random() * (INTERVAL '365 days')) AS start_time,
-                (TIMESTAMP '2025-01-01 08:00:00' + (random() * (INTERVAL '365 days'))) + (random() * 3 + 1) * INTERVAL '1 hour' AS end_time,
-                CASE 
-                    WHEN random() < 0.8 THEN 'confirmed'
-                    WHEN random() < 0.9 THEN 'pending'
-                    ELSE 'cancelled'
-                END
-            FROM 
-                generate_series(1, {count}) AS t(i);
+                (SELECT client_id FROM client ORDER BY random() LIMIT 1),
+                (SELECT facility_id FROM facility ORDER BY random() LIMIT 1),
+                NOW() + (random() * (INTERVAL '90 days')),
+                NOW() + (random() * (INTERVAL '90 days')) + '2 hours',
+                CASE WHEN random() < 0.8 THEN 'confirmed' ELSE 'cancelled' END
+            FROM generate_series(1, {count}) AS t(i);
         """
         try:
-            start_time = time.time()
+            t_start = time.time()
             with self.conn.cursor() as cur:
                 cur.execute(sql)
-            self.conn.commit() # Зберігаємо
-            end_time = time.time()
-            
-            time_ms = round((end_time - start_time) * 1000, 2)
-            return f" {count} записів додано до Booking. Час виконання: {time_ms} мс."
-
-        except psycopg2.errors.ForeignKeyViolation as e:
-            self.conn.rollback()
-            return f" Помилка FK (це дивно, перевірте _get_max_ids): {e.diag.message_primary}"
+            self.conn.commit()
+            t_end = time.time()
+            return f"{count} бронювань згенеровано за {round((t_end-t_start)*1000, 2)} мс."
         except psycopg2.Error as e:
             self.conn.rollback()
-            return f" Помилка БД під час генерації Booking: {e.diag.message_primary}"
+            return f"Помилка генерації бронювань: {e.diag.message_primary}"
 
-
-    # --- ПОШУК (Пункт 3) ---
+    # =========================================================================
+    # ПОШУК (Пункт 3)
+    # =========================================================================
 
     def search_bookings(self, facility_id, date_from, date_to, status, min_price):
-        """Реалізація пошуку за декількома атрибутами з 3-х сутностей."""
-        
+        """Складний пошук із JOIN трьох таблиць."""
         sql = """
             SELECT
                 C.client_first_name, C.client_last_name, 
@@ -260,7 +285,7 @@ class DatabaseModel:
         if where_clauses:
             sql += " WHERE " + " AND ".join(where_clauses)
             
-        sql += " LIMIT 50;"
+        sql += " LIMIT 50;" # Обмеження виводу
 
         try:
             start_time = time.time()
@@ -270,12 +295,10 @@ class DatabaseModel:
                 data = cur.fetchall()
             end_time = time.time()
             
-            # SELECT не потребує commit
-            
             time_ms = round((end_time - start_time) * 1000, 2)
-            
-            return f" Пошук завершено. Знайдено {len(data)} записів. Час виконання: {time_ms} мс.", (headers, data)
+            msg = f"Пошук завершено. Знайдено {len(data)} записів. Час: {time_ms} мс."
+            return msg, (headers, data)
 
         except psycopg2.Error as e:
-            self.conn.rollback() # На випадок помилки SELECT
-            return f" Помилка БД під час пошуку: {e.diag.message_primary}", (None, None)
+            self.conn.rollback()
+            return f"Помилка пошуку: {e.diag.message_primary}", (None, None)
